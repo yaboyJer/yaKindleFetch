@@ -12,6 +12,9 @@ VERSION_FILE="$SCRIPT_DIR/.version"
 ZLIB_COOKIES_FILE="$SCRIPT_DIR/zlib_cookies.txt"
 TMP_DIR="/tmp"
 BASE_DIR="/mnt/us"
+FILTER_DIR="$BASE_DIR/.kindlefetch"
+CURRENT_FILTERS_FILE="$FILTER_DIR/current_filters"
+CURRENT_PARAMS_FILE="$FILTER_DIR/current_filter_params"
 
 UPDATE_AVAILABLE=false
 CREATE_SUBFOLDERS=false

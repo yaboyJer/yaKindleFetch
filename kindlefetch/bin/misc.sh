@@ -38,6 +38,22 @@ sanitize_filename() {
     echo "$1" | sed -e 's/[^[:alnum:]\._-]/_/g' -e 's/ /_/g'
 }
 
+urlencode() {
+    local LC_ALL=C
+    local s="$1" out="" c i=0
+    while [ "$i" -lt "${#s}" ]; do
+        c="${s:$i:1}"
+        case "$c" in
+            [a-zA-Z0-9.~_-]) out="$out$c" ;;
+            ' ') out="$out+" ;;
+            "'") out="$out%27" ;;
+            *) out="$out$(printf '%%%02X' "'$c")" ;;
+        esac
+        i=$((i + 1))
+    done
+    printf '%s' "$out"
+}
+
 get_json_value() {
     echo "$1" | grep -o "\"$2\"[[:space:]]*:[[:space:]]*\"[^\"]*\"" | sed "s/\"$2\"[[:space:]]*:[[:space:]]*\"\([^\"]*\)\"/\1/" || \
     echo "$1" | grep -o "\"$2\"[[:space:]]*:[[:space:]]*[^,}]*" | sed "s/\"$2\"[[:space:]]*:[[:space:]]*\([^,}]*\)/\1/"

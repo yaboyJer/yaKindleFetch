@@ -23,6 +23,8 @@ CONFIG_FILE="$INSTALL_DIR/bin/kindlefetch_config"
 TEMP_CONFIG="/mnt/us/kindlefetch_config"
 ZLIB_COOKIES_FILE="$INSTALL_DIR/bin/zlib_cookies.txt"
 TEMP_ZLIB_COOKIES_FILE="/mnt/us/zlib_cookies.txt"
+FILTER_DIR="/mnt/us/.kindlefetch"
+TEMP_FILTER_DIR="/mnt/us/.kindlefetch_backup"
 VERSION_FILE="$INSTALL_DIR/bin/.version"
 
 get_version() {
@@ -47,6 +49,12 @@ fi
 if [ -f "$ZLIB_COOKIES_FILE" ]; then
     echo "Backing up existing zlib cookies..."
     cp -f "$ZLIB_COOKIES_FILE" "$TEMP_ZLIB_COOKIES_FILE"
+fi
+
+if [ -d "$FILTER_DIR" ]; then
+    echo "Backing up existing filters..."
+    rm -rf "$TEMP_FILTER_DIR"
+    cp -r "$FILTER_DIR" "$TEMP_FILTER_DIR"
 fi
 
 echo "Downloading KindleFetch..."
@@ -85,6 +93,12 @@ fi
 if [ -f "$TEMP_ZLIB_COOKIES_FILE" ]; then
     echo "Restoring zlib cookies..."
     mv -f "$TEMP_ZLIB_COOKIES_FILE" "$ZLIB_COOKIES_FILE"
+fi
+
+if [ -d "$TEMP_FILTER_DIR" ]; then
+    echo "Restoring filter state..."
+    rm -rf "$FILTER_DIR"
+    mv -f "$TEMP_FILTER_DIR" "$FILTER_DIR"
 fi
 
 echo "Cleaning up..."

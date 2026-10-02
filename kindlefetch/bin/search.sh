@@ -80,11 +80,11 @@ search_books() {
     echo "Searching for '$query' (page $page)..."
 
     local filters=""
-    if [ -f "$SCRIPT_DIR"/tmp/current_filter_params ]; then
-        filters=$(cat "$SCRIPT_DIR/tmp/current_filter_params")
+    if [ -f "$CURRENT_PARAMS_FILE" ]; then
+        filters="$(cat "$CURRENT_PARAMS_FILE")"
     fi
     
-    local encoded_query=$(echo "$query" | sed 's/ /+/g')
+    local encoded_query="$(urlencode "$query")"
     local search_url="$ANNAS_URL/search?page=${page}&q=${encoded_query}${filters}"
     local html_content="$(curl -s -L -H "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64)" "$search_url")"
     

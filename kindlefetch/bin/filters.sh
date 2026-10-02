@@ -1,13 +1,10 @@
 #!/bin/sh
 
 filters_menu() {
-    CURRENT_FILTERS_FILE="$SCRIPT_DIR/tmp/current_filters"
-    CURRENT_PARAMS_FILE="$SCRIPT_DIR/tmp/current_filter_params"
-
     local current_tab=1
     local total_tabs=5
 
-    mkdir -p "$SCRIPT_DIR/tmp" 2>/dev/null
+    mkdir -p "$FILTER_DIR" 2>/dev/null
 
     if [ -f "$CURRENT_FILTERS_FILE" ]; then
         . "$CURRENT_FILTERS_FILE" 2>/dev/null || {
