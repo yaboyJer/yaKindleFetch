@@ -64,7 +64,7 @@ main_menu() {
 | . \| | | | | (_| | |  __/ | |  __/ || (__| | | |
 |_|\_\_|_| |_|\__,_|_|\___|_|  \___|\__\___|_| |_|
                                                 
-$(load_version) | https://github.com/justrals/KindleFetch
+$(load_version) | https://github.com/yaboyJer/yaKindleFetch
 "
         if $UPDATE_AVAILABLE; then
             echo "Update available! Select option 6 to install."

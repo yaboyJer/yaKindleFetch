@@ -58,7 +58,7 @@ cleanup() {
 }
 
 get_version() {
-    local api_response="$(curl -s -H "Accept: application/vnd.github.v3+json" "https://api.github.com/repos/justrals/KindleFetch/commits")" || {
+    local api_response="$(curl -s -H "Accept: application/vnd.github.v3+json" "https://api.github.com/repos/yaboyJer/yaKindleFetch/commits")" || {
         echo "Failed to fetch version from GitHub API" >&2
         echo "unknown"
         return
@@ -75,7 +75,7 @@ check_for_updates() {
     
     local latest_sha="$(curl -s -H "Accept: application/vnd.github.v3+json" \
         -H "Cache-Control: no-cache" \
-        "https://api.github.com/repos/justrals/KindleFetch/commits?per_page=1" | \
+        "https://api.github.com/repos/yaboyJer/yaKindleFetch/commits?per_page=1" | \
         grep -oE '"sha": "[0-9a-f]+"' | head -1 | cut -d'"' -f4 | cut -c1-7)"
     
     if [ -n "$latest_sha" ] && [ "$current_sha" != "$latest_sha" ]; then
@@ -132,7 +132,9 @@ zlib_login() {
 find_working_url() {
     for url in "$@"; do
         code=$(curl -s -o /dev/null -w '%{http_code}' \
-               --max-time 2 -L "$url")
+               --max-time 5 -L \
+               -H "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64)" \
+               "$url")
 
         [ "$code" = "000" ] && continue
         [ "$code" -ge 500 ] && continue
