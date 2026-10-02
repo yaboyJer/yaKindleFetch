@@ -86,7 +86,38 @@ search_books() {
     
     local encoded_query="$(urlencode "$query")"
     local search_url="$ANNAS_URL/search?page=${page}&q=${encoded_query}${filters}"
-    local html_content="$(curl -s -L -H "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64)" "$search_url")"
+    # Fetch results page, keeping curl/HTTP status for diagnostics.
+    # search_books return codes: 0 = ok (incl. no results), 1 = network failure,
+    # 2 = HTTP error, 3 = request blocked (e.g. challenge page).
+    local http_code curl_exit html_content
+    http_code="$(curl -s -L --max-time 30 \
+        -o "$TMP_DIR"/last_search_page.html \
+        -w '%{http_code}' \
+        -H "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64)" \
+        "$search_url")"
+    curl_exit=$?
+    html_content="$(cat "$TMP_DIR"/last_search_page.html 2>/dev/null)"
+    rm -f "$TMP_DIR"/last_search_page.html
+
+    if [ "$curl_exit" -ne 0 ]; then
+        local reason
+        case "$curl_exit" in
+            6) reason="DNS lookup failed" ;;
+            7) reason="could not connect to $ANNAS_URL" ;;
+            28) reason="request timed out after 30s" ;;
+            35|56|58|59|60|66) reason="SSL/TLS error talking to $ANNAS_URL" ;;
+            *) reason="network error (curl exit code $curl_exit)" ;;
+        esac
+        echo "Search failed: $reason" >&2
+        sleep 3
+        return 1
+    fi
+
+    if [ "$http_code" != "200" ]; then
+        echo "Search failed: $ANNAS_URL returned HTTP $http_code (mirror may be down or refusing requests)" >&2
+        sleep 3
+        return 2
+    fi
     
     local last_page="$(echo "$html_content" | grep -o 'page=[0-9]\+"' | sort -t= -k2 -nr | head -1 | cut -d= -f2 | tr -d '"')"
     [ -z "$last_page" ] && last_page=1
@@ -187,6 +218,21 @@ search_books() {
     )"
     
     echo "$books" > "$TMP_DIR"/search_results.json
+
+    local book_count
+    book_count="$(echo "$books" | grep -o '"title":' | wc -l)"
+
+    if [ "$book_count" -eq 0 ]; then
+        if echo "$html_content" | grep -qiE 'just a moment|cf-chl|captcha'; then
+            echo "Search failed: request to $ANNAS_URL was blocked by a challenge page." >&2
+            sleep 3
+            return 3
+        fi
+        if ! echo "$html_content" | grep -q 'flex pt-3 pb-3 border-b'; then
+            echo "No book entries found in the results page - the site layout may have changed or results were filtered out." >&2
+            sleep 2
+        fi
+    fi
 
     while true; do
         local query="$(cat "$TMP_DIR"/last_search_query 2>/dev/null)"
