@@ -37,12 +37,12 @@ display_books() {
         description="$(get_json_value "$book_info" "description")"
 
         if [ "$COMPACT_OUTPUT" != true ]; then
-            printf "%2d. %s\n" "$((i+1))" "$title"
+            printf "%2d. %s\n" "$((i - start + 1))" "$title"
             [ -n "$description" ] && [ "$description" != "null" ] && echo "    $description"
             echo ""
         else
             printf "%2d. %s by %s in %s format\n" \
-                "$((i+1))" "$title" "$author" "$format"
+                "$((i - start + 1))" "$title" "$author" "$format"
             echo ""
         fi
 
@@ -177,7 +177,7 @@ search_books() {
                 if (count > 0) {
                     printf ",\n"
                 }
-                printf "  {\"author\": \"%s\", \"format\": \"%s\", \"md5\": \"%s\", \"title\": \"%s\", \"url\": \"%s/md5/%s\", \"description\": \"%s\"}", author, format, md5, title, base_url, md5, description
+                printf "  {\"author\": \"%s\", \"format\": \"%s\", \"md5\": \"%s\", \"title\": \"%s\", \"description\": \"%s\"}", author, format, md5, title, description
                 count++
             }
         }
@@ -265,8 +265,8 @@ search_books() {
                     [ "$end" -ge "$count" ] && end=$((count - 1))
                     local items_on_page=$(( end - start + 1 ))
 
-                    if [ "$choice" -ge 1 ] && [ "$choice" -le "$count" ]; then
-                        absolute_index=$(( choice - 1 ))
+                    if [ "$choice" -ge 1 ] && [ "$choice" -le "$items_on_page" ]; then
+                        absolute_index=$(( start + choice - 1 ))
 
                         book_info="$(awk -v i=$absolute_index \
                             'BEGIN{RS="\\{"; FS="\\}"} NR==i+2{print $1}' \

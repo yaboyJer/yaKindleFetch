@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-rm kindlefetch.zip
-rm kindlefetch/bin/kindlefetch_config
-rm kindlefetch/bin/zlib_cookies.txt
-rm kindlefetch/bin/.version
+rm -f kindlefetch.zip
+rm -f kindlefetch/bin/kindlefetch_config
+rm -f kindlefetch/bin/zlib_cookies.txt
+rm -f kindlefetch/bin/.version
 
 
 get_version() {

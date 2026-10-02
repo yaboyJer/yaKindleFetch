@@ -58,7 +58,8 @@ lgli_download() {
     fi
 
     printf '\nFetching download page...\n'
-    if ! local lgli_content="$(curl -s -L "$LGLI_URL/ads.php?md5=$md5")"; then
+    local lgli_content
+    if ! lgli_content="$(curl -s -L "$LGLI_URL/ads.php?md5=$md5")"; then
         echo "Failed to fetch book page" >&2
         return 1
     fi

@@ -58,7 +58,7 @@ cleanup() {
 }
 
 get_version() {
-    local api_response="$(curl -s -H "Accept: application/vnd.github.v3+json" "https://api.github.com/repos/yaboyJer/yaKindleFetch/commits")" || {
+    local api_response="$(curl -s --max-time 10 -H "Accept: application/vnd.github.v3+json" "https://api.github.com/repos/yaboyJer/yaKindleFetch/commits")" || {
         echo "Failed to fetch version from GitHub API" >&2
         echo "unknown"
         return
@@ -73,7 +73,7 @@ get_version() {
 check_for_updates() {
     local current_sha="$(load_version)"
     
-    local latest_sha="$(curl -s -H "Accept: application/vnd.github.v3+json" \
+    local latest_sha="$(curl -s --max-time 10 -H "Accept: application/vnd.github.v3+json" \
         -H "Cache-Control: no-cache" \
         "https://api.github.com/repos/yaboyJer/yaKindleFetch/commits?per_page=1" | \
         grep -oE '"sha": "[0-9a-f]+"' | head -1 | cut -d'"' -f4 | cut -c1-7)"

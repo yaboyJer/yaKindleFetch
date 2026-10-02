@@ -11,7 +11,7 @@ update() {
                 echo "Update installed successfully!"
                 UPDATE_AVAILABLE=false
                 VERSION=$(load_version)
-                exec exit 0
+                exit 0
             else
                 echo "Failed to install update"
                 sleep 2

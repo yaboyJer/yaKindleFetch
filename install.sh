@@ -58,6 +58,12 @@ unzip -o "$ZIP_FILE" -d "/mnt/us"
 echo "Extraction complete."
 rm -f "$ZIP_FILE"
 
+if [ ! -d "$EXTRACTED_DIR/kindlefetch" ] || [ -z "$(ls -A "$EXTRACTED_DIR/kindlefetch")" ]; then
+    echo "Error: extracted archive does not contain a kindlefetch/ directory. Aborting before removing existing installation."
+    rm -rf "$EXTRACTED_DIR"
+    exit 1
+fi
+
 echo "Removing old installation..."
 rm -rf "$INSTALL_DIR"
 
