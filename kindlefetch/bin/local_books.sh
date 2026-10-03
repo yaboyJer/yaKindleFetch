@@ -96,8 +96,8 @@ list_local_books() {
         echo ""
         echo "--------------------------------"
         echo "d[n]: Delete item n (book or folder)"
-        echo "n: Go up to parent directory"
-        echo "number: Open folder"
+        echo "[n]: Open folder"
+        echo "u: Move up one directory"
         echo "q: Back to main menu"
         echo ""
 
@@ -110,7 +110,7 @@ list_local_books() {
             [qQ])
                 return 0
                 ;;
-            [nN])
+            [uU])
                 current_dir=$(dirname "$current_dir")
                 ;;
             [dD][0-9]*)
