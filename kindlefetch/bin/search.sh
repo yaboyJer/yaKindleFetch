@@ -88,9 +88,9 @@ search_books() {
     local search_url="$ANNAS_URL/search?page=${page}&q=${encoded_query}${filters}"
     # Fetch results page, keeping curl/HTTP status for diagnostics.
     # If Anna's Archive fails (network, HTTP error, challenge page, or a page
-    # with no parseable entries), the user is offered Library Genesis as a
+    # with no parseable entries), Library Genesis is automatically used as a
     # fallback search backend. search_books returns 0 on success (incl. no
-    # results) and 1 when both backends fail or the fallback is declined.
+    # results) and 1 when both backends fail.
     local http_code curl_exit html_content
     http_code="$(curl -s -L --max-time 30 \
         -o "$TMP_DIR"/last_search_page.html \
@@ -222,12 +222,8 @@ search_books() {
 
     if [ -n "$aa_error" ]; then
         echo "Anna's Archive search failed: $aa_error" >&2
+        echo "Falling back to Library Genesis..." >&2
         sleep 2
-        echo -n "Search via Library Genesis instead? [Y/n]: "
-        read -r lgli_fallback_choice
-        if [ "$lgli_fallback_choice" = "n" ] || [ "$lgli_fallback_choice" = "N" ]; then
-            return 1
-        fi
         local lgli_last_page
         if ! lgli_last_page="$(lgli_search "$query" "$page")"; then
             sleep 2
@@ -332,6 +328,82 @@ search_books() {
                         book_info="$(awk -v i=$absolute_index \
                             'BEGIN{RS="\\{"; FS="\\}"} NR==i+2{print $1}' \
                             "$TMP_DIR"/search_results.json)"
+
+                        local title
+                        title="$(get_json_value "$book_info" "title")"
+
+                        # Check the local library for an existing copy of this book
+                        local dup_matches
+                        dup_matches="$(find_local_books "$title")"
+                        if [ -n "$dup_matches" ]; then
+                            echo "" >&2
+                            echo "'$title' already exists in your library:" >&2
+                            echo "$dup_matches" | while IFS= read -r dup_f; do
+                                echo "  $dup_f" >&2
+                            done
+                            echo "" >&2
+                            echo "1. Download (keep all)" >&2
+                            echo "2. Replace (delete an existing copy first)" >&2
+                            echo "3. Cancel" >&2
+                            echo -n "Choose option: "
+                            read -r dup_choice
+
+                            case "$dup_choice" in
+                                3)
+                                    continue
+                                    ;;
+                                2)
+                                    local dup_target dup_pick deleted_ok dup_f dup_n
+                                    if [ "$(echo "$dup_matches" | wc -l)" -eq 1 ]; then
+                                        dup_target="$dup_matches"
+                                    else
+                                        dup_n=1
+                                        echo "$dup_matches" | while IFS= read -r dup_f; do
+                                            echo "  ${dup_n}. $dup_f"
+                                            dup_n=$((dup_n + 1))
+                                        done
+                                        echo -n "Which copy to delete? (1-$(echo "$dup_matches" | wc -l), or a for all): "
+                                        read -r dup_pick
+                                        case "$dup_pick" in
+                                            a|A) dup_target="$dup_matches" ;;
+                                            *)
+                                                if echo "$dup_pick" | grep -qE '^[0-9]+$' && [ "$dup_pick" -ge 1 ] && [ "$dup_pick" -le "$(echo "$dup_matches" | wc -l)" ]; then
+                                                    dup_target="$(echo "$dup_matches" | sed -n "${dup_pick}p")"
+                                                else
+                                                    echo "Invalid selection. Canceling." >&2
+                                                    sleep 2
+                                                    continue
+                                                fi
+                                                ;;
+                                        esac
+                                    fi
+
+                                    echo "$dup_target" > "$TMP_DIR"/dup_targets
+                                    deleted_ok=true
+                                    while IFS= read -r dup_f; do
+                                        [ -z "$dup_f" ] && continue
+                                        rm -f "$dup_f" || deleted_ok=false
+                                    done < "$TMP_DIR"/dup_targets
+                                    rm -f "$TMP_DIR"/dup_targets
+
+                                    if [ "$deleted_ok" = true ]; then
+                                        echo "Deleted. Continuing with download..." >&2
+                                        sleep 2
+                                    else
+                                        echo "Failed to delete existing copy. Canceling." >&2
+                                        sleep 2
+                                        continue
+                                    fi
+                                    ;;
+                                1)
+                                    ;;
+                                *)
+                                    echo "Invalid selection. Canceling." >&2
+                                    sleep 2
+                                    continue
+                                    ;;
+                            esac
+                        fi
 
                         local lgli_available=false
                         local zlib_available=false

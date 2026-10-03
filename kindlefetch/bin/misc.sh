@@ -71,7 +71,8 @@ cleanup() {
           "$TMP_DIR"/kindle_folders.list \
           "$TMP_DIR"/search_results.json \
           "$TMP_DIR"/last_search_* \
-          "$TMP_DIR"/lgli_search_page.html
+          "$TMP_DIR"/lgli_search_page.html \
+          "$TMP_DIR"/dup_targets
 }
 
 get_version() {
@@ -144,6 +145,34 @@ zlib_login() {
         sleep 2
         return 1
     fi
+}
+
+normalize_name() {
+    printf '%s' "$1" | tr '[:upper:]' '[:lower:]' | \
+        sed -e 's/[^a-z0-9 ]//g' -e 's/  */ /g' -e 's/^ //;s/ $//'
+}
+
+find_local_books() {
+    # Print every file in $KINDLE_DOCUMENTS (depth <= 2) whose name
+    # (without extension) contains the normalized title. Prints nothing
+    # when there are no matches.
+    local norm_title
+    norm_title="$(normalize_name "$1")"
+    # Skip trivially short titles: they'd match almost every file.
+    [ ${#norm_title} -lt 4 ] && return 0
+    [ -d "$KINDLE_DOCUMENTS" ] || return 0
+
+    local f base norm_name
+    for f in "$KINDLE_DOCUMENTS"/* "$KINDLE_DOCUMENTS"/*/*; do
+        [ -f "$f" ] || continue
+        base="$(basename "$f")"
+        base="${base%.*}"
+        norm_name="$(normalize_name "$base")"
+        case "$norm_name" in
+            *"$norm_title"*) echo "$f" ;;
+        esac
+    done
+    return 0
 }
 
 find_working_url() {

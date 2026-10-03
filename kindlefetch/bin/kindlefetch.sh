@@ -76,7 +76,7 @@ $(load_version) | https://github.com/yaboyJer/yaKindleFetch
         fi
         echo "1. Search and download books"
         echo "2. Filter search results"
-        echo "3. List my books"
+        echo "3. Manage Library"
         echo "4. Settings"
         echo "q. Exit"
         if $UPDATE_AVAILABLE; then
