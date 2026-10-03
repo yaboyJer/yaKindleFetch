@@ -87,8 +87,10 @@ search_books() {
     local encoded_query="$(urlencode "$query")"
     local search_url="$ANNAS_URL/search?page=${page}&q=${encoded_query}${filters}"
     # Fetch results page, keeping curl/HTTP status for diagnostics.
-    # search_books return codes: 0 = ok (incl. no results), 1 = network failure,
-    # 2 = HTTP error, 3 = request blocked (e.g. challenge page).
+    # If Anna's Archive fails (network, HTTP error, challenge page, or a page
+    # with no parseable entries), the user is offered Library Genesis as a
+    # fallback search backend. search_books returns 0 on success (incl. no
+    # results) and 1 when both backends fail or the fallback is declined.
     local http_code curl_exit html_content
     http_code="$(curl -s -L --max-time 30 \
         -o "$TMP_DIR"/last_search_page.html \
@@ -99,6 +101,7 @@ search_books() {
     html_content="$(cat "$TMP_DIR"/last_search_page.html 2>/dev/null)"
     rm -f "$TMP_DIR"/last_search_page.html
 
+    local aa_error=""
     if [ "$curl_exit" -ne 0 ]; then
         local reason
         case "$curl_exit" in
@@ -108,33 +111,20 @@ search_books() {
             35|56|58|59|60|66) reason="SSL/TLS error talking to $ANNAS_URL" ;;
             *) reason="network error (curl exit code $curl_exit)" ;;
         esac
-        echo "Search failed: $reason" >&2
-        sleep 3
-        return 1
+        aa_error="$reason"
+    elif [ "$http_code" != "200" ]; then
+        aa_error="$ANNAS_URL returned HTTP $http_code (mirror may be down or refusing requests)"
     fi
 
-    if [ "$http_code" != "200" ]; then
-        echo "Search failed: $ANNAS_URL returned HTTP $http_code (mirror may be down or refusing requests)" >&2
-        sleep 3
-        return 2
-    fi
-    
-    local last_page="$(echo "$html_content" | grep -o 'page=[0-9]\+"' | sort -t= -k2 -nr | head -1 | cut -d= -f2 | tr -d '"')"
-    [ -z "$last_page" ] && last_page=1
-    
-    local has_prev=false
-    [ "$page" -gt 1 ] && has_prev=true
-    
-    local has_next=false
-    [ "$page" -lt "$last_page" ] && has_next=true
+    local last_page=""
+    local books=""
 
-    echo "$query" > "$TMP_DIR"/last_search_query
-    echo "$page" > "$TMP_DIR"/last_search_page
-    echo "$last_page" > "$TMP_DIR"/last_search_last_page
-    echo "$has_next" > "$TMP_DIR"/last_search_has_next
-    echo "$has_prev" > "$TMP_DIR"/last_search_has_prev
+    if [ -z "$aa_error" ]; then
     
-    local books="$(echo $html_content | awk '
+        last_page="$(echo "$html_content" | grep -o 'page=[0-9]\+"' | sort -t= -k2 -nr | head -1 | cut -d= -f2 | tr -d '"')"
+        [ -z "$last_page" ] && last_page=1
+
+        books="$(echo $html_content | awk '
         BEGIN {
             RS = "<div class=\"flex pt-3 pb-3 border-b last:border-b-0 border-gray-100\">"
             print "["
@@ -217,22 +207,47 @@ search_books() {
         }'
     )"
     
-    echo "$books" > "$TMP_DIR"/search_results.json
+        echo "$books" > "$TMP_DIR"/search_results.json
 
-    local book_count
-    book_count="$(echo "$books" | grep -o '"title":' | wc -l)"
-
-    if [ "$book_count" -eq 0 ]; then
-        if echo "$html_content" | grep -qiE 'just a moment|cf-chl|captcha'; then
-            echo "Search failed: request to $ANNAS_URL was blocked by a challenge page." >&2
-            sleep 3
-            return 3
-        fi
-        if ! echo "$html_content" | grep -q 'flex pt-3 pb-3 border-b'; then
-            echo "No book entries found in the results page - the site layout may have changed or results were filtered out." >&2
-            sleep 2
+        local book_count
+        book_count="$(echo "$books" | grep -o '"title":' | wc -l)"
+        if [ "$book_count" -eq 0 ]; then
+            if echo "$html_content" | grep -qiE 'just a moment|cf-chl|captcha'; then
+                aa_error="request was blocked by a challenge page"
+            elif ! echo "$html_content" | grep -q 'flex pt-3 pb-3 border-b'; then
+                aa_error="no book entries found in the results page (site layout may have changed)"
+            fi
         fi
     fi
+
+    if [ -n "$aa_error" ]; then
+        echo "Anna's Archive search failed: $aa_error" >&2
+        sleep 2
+        echo -n "Search via Library Genesis instead? [Y/n]: "
+        read -r lgli_fallback_choice
+        if [ "$lgli_fallback_choice" = "n" ] || [ "$lgli_fallback_choice" = "N" ]; then
+            return 1
+        fi
+        local lgli_last_page
+        if ! lgli_last_page="$(lgli_search "$query" "$page")"; then
+            sleep 2
+            return 1
+        fi
+        last_page="$lgli_last_page"
+        [ -z "$last_page" ] && last_page=1
+    fi
+
+    local has_prev=false
+    [ "$page" -gt 1 ] && has_prev=true
+
+    local has_next=false
+    [ "$page" -lt "$last_page" ] && has_next=true
+
+    echo "$query" > "$TMP_DIR"/last_search_query
+    echo "$page" > "$TMP_DIR"/last_search_page
+    echo "$last_page" > "$TMP_DIR"/last_search_last_page
+    echo "$has_next" > "$TMP_DIR"/last_search_has_next
+    echo "$has_prev" > "$TMP_DIR"/last_search_has_prev
 
     while true; do
         local query="$(cat "$TMP_DIR"/last_search_query 2>/dev/null)"

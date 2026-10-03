@@ -37,6 +37,7 @@ fi
 . "$SCRIPT_DIR/downloads/lgli_download.sh"
 . "$SCRIPT_DIR/filters.sh"
 . "$SCRIPT_DIR/search.sh"
+. "$SCRIPT_DIR/lgli_search.sh"
 . "$SCRIPT_DIR/misc.sh"
 . "$SCRIPT_DIR/local_books.sh"
 . "$SCRIPT_DIR/update.sh"

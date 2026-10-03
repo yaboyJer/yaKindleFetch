@@ -70,7 +70,8 @@ cleanup() {
     rm -f "$TMP_DIR"/kindle_books.list \
           "$TMP_DIR"/kindle_folders.list \
           "$TMP_DIR"/search_results.json \
-          "$TMP_DIR"/last_search_*
+          "$TMP_DIR"/last_search_* \
+          "$TMP_DIR"/lgli_search_page.html
 }
 
 get_version() {
