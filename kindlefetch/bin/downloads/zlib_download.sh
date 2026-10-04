@@ -17,7 +17,9 @@ zlib_download() {
     local md5="$(get_json_value "$book_info" "md5")"
 
     local final_url
-    final_url="$(curl -s -L -o /dev/null -w "%{url_effective}" "$ZLIB_URL/md5/$md5")"
+    final_url="$(curl -s -L -o /dev/null -w "%{url_effective}" \
+        -H "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64)" \
+        "$ZLIB_URL/md5/$md5")"
 
     local book_id="$(echo "$final_url" | sed -n 's#.*/book/\([0-9][0-9]*\)/[a-z0-9]\+#\1#p')"
     local book_hash="$(echo "$final_url" | sed -n 's#.*/book/[0-9][0-9]*/\([a-z0-9]\+\).*#\1#p')"
@@ -56,7 +58,7 @@ zlib_download() {
         echo "Proceeding with original filename."
     fi
 
-    local file_size="$(curl -sI "$ddl" | awk '/Content-Length/ {printf "%.2f MB\n", $2/1048576}')"
+    local file_size="$(curl -sI -H "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64)" "$ddl" | awk '/Content-Length/ {printf "%.2f MB\n", $2/1048576}')"
     local filename="$(sanitize_filename "${title}.${ext}")"
     local filename="${filename:-book.bin}"
     
@@ -85,7 +87,9 @@ zlib_download() {
     printf "\nBook: $title\nExtension: $ext\nFile size: $file_size\nMD5: $md5\n"
     printf "\nProgress (Press Ctrl + c to stop):\n"
 
-    if curl -L --progress-bar -b "$ZLIB_COOKIES_FILE" -o "$final_location" "$ddl"; then
+    if curl -L --progress-bar -b "$ZLIB_COOKIES_FILE" -o "$final_location" \
+        -H "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64)" \
+        "$ddl"; then
         printf "\nDownload successful!\n"
         echo "Saved to: $final_location"
         return 0

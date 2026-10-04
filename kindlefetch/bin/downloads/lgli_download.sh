@@ -123,23 +123,25 @@ lgli_download() {
     # it is not a real book file.
     local dl_code dl_size dl_attempt=1
     while [ "$dl_attempt" -le 3 ]; do
-        dl_code="$(curl -# -L -o "$final_location" -w '%{http_code}' "$download_url")"
+        # NOTE: the file CDN (booksdl.lc) serves its raw nginx welcome page
+        # to non-browser User-Agents while answering HTTP 200 - the browser
+        # UA below is mandatory, not cosmetic.
+        dl_code="$(curl -# -L -o "$final_location" -w '%{http_code}' \
+            -H "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64)" \
+            "$download_url")"
         dl_size=$(wc -c < "$final_location" 2>/dev/null)
         dl_size=${dl_size:-0}
 
         if [ "$dl_code" = "200" ] && [ "$dl_size" -gt 2048 ]; then
-            local first_bytes
-            first_bytes="$(head -c 15 "$final_location" | tr -d '\0')"
-            case "$first_bytes" in
-                "<!DOCTYPE"*|"<html"*|"<HTML"*)
-                    echo "Downloaded file is an HTML error page, not the book."
-                    ;;
-                *)
-                    printf '\nDownload successful!\n'
-                    echo "Saved to: $final_location"
-                    return 0
-                    ;;
-            esac
+            # A real book file (mobi/epub/txt/...) never starts with HTML
+            # markup; error pages sometimes do (BOM, case, whitespace vary).
+            if head -c 64 "$final_location" | tr -d '\0' | grep -qi 'doctype\|<html'; then
+                echo "Downloaded file is an HTML error page, not the book."
+            else
+                printf '\nDownload successful!\n'
+                echo "Saved to: $final_location"
+                return 0
+            fi
         else
             echo "Download failed (HTTP $dl_code, $dl_size bytes)."
         fi
