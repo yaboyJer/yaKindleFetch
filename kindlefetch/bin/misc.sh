@@ -59,6 +59,14 @@ get_json_value() {
     echo "$1" | grep -o "\"$2\"[[:space:]]*:[[:space:]]*[^,}]*" | sed "s/\"$2\"[[:space:]]*:[[:space:]]*\([^,}]*\)/\1/"
 }
 
+persist_search_results() {
+    # Keep a persistent copy of the latest search results on the USB drive
+    # for debugging, since /tmp is wiped on reboot.
+    [ -f "$TMP_DIR"/search_results.json ] || return 0
+    mkdir -p "$FILTER_DIR" 2>/dev/null
+    cp "$TMP_DIR"/search_results.json "$FILTER_DIR"/last_search_results.json 2>/dev/null
+}
+
 ensure_config_dir() {
     local config_dir="$(dirname "$CONFIG_FILE")"
     if [ ! -d "$config_dir" ]; then

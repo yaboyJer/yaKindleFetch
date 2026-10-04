@@ -208,6 +208,7 @@ search_books() {
     )"
     
         echo "$books" > "$TMP_DIR"/search_results.json
+        persist_search_results
 
         local book_count
         book_count="$(echo "$books" | grep -o '"title":' | wc -l)"
