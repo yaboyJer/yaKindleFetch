@@ -108,13 +108,42 @@ lgli_download() {
     
     printf '\nProgress (Press Ctrl + c to stop):\n'
 
-    if curl -# -L -o "$final_location" "$download_url"; then
-        printf '\nDownload successful!\n'
-        echo "Saved to: $final_location"
-        return 0
-    
-    else
-        printf '\nDownload failed.' >&2
-        return 1
-    fi
+    # The file CDN (e.g. cdn3.booksdl.lc) is flaky: depending on node and
+    # timing it can answer HTTP 503, or even its raw nginx welcome page with
+    # a "successful" 200. Validate what was actually saved and retry when
+    # it is not a real book file.
+    local dl_code dl_size dl_attempt=1
+    while [ "$dl_attempt" -le 3 ]; do
+        dl_code="$(curl -# -L -o "$final_location" -w '%{http_code}' "$download_url")"
+        dl_size=$(wc -c < "$final_location" 2>/dev/null)
+        dl_size=${dl_size:-0}
+
+        if [ "$dl_code" = "200" ] && [ "$dl_size" -gt 2048 ]; then
+            local first_bytes
+            first_bytes="$(head -c 15 "$final_location" | tr -d '\0')"
+            case "$first_bytes" in
+                "<!DOCTYPE"*|"<html"*|"<HTML"*)
+                    echo "Downloaded file is an HTML error page, not the book."
+                    ;;
+                *)
+                    printf '\nDownload successful!\n'
+                    echo "Saved to: $final_location"
+                    return 0
+                    ;;
+            esac
+        else
+            echo "Download failed (HTTP $dl_code, $dl_size bytes)."
+        fi
+
+        rm -f "$final_location"
+        if [ "$dl_attempt" -lt 3 ]; then
+            echo "Retrying in 10s..."
+            sleep 10
+        fi
+        dl_attempt=$((dl_attempt + 1))
+    done
+
+    printf '\nDownload failed after 3 attempts. The file CDN may be overloaded - try again later or pick a different edition.' >&2
+    rm -f "$final_location"
+    return 1
 }
