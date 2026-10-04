@@ -63,19 +63,43 @@ lgli_download() {
     fi
 
     printf '\nFetching download page...\n'
+    # libgen's servers are overloaded at times and answer with transient
+    # errors (HTTP 500, "max_user_connections" DB errors). Retry a few
+    # times before giving up, and check the HTTP status so a server error
+    # page is never mistaken for a book page.
+    local page_file="$TMP_DIR"/lgli_ads_page.html
+    local http_code curl_exit attempt=1
+    while [ "$attempt" -le 3 ]; do
+        http_code="$(curl -s -L --max-time 60 -o "$page_file" -w '%{http_code}' \
+            -H "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64)" \
+            "$LGLI_URL/ads.php?md5=$md5")"
+        curl_exit=$?
+        if [ "$curl_exit" -eq 0 ] && [ "$http_code" = "200" ] && [ -s "$page_file" ]; then
+            break
+        fi
+        if [ "$attempt" -lt 3 ]; then
+            echo "Server error (HTTP $http_code, curl exit $curl_exit). Retrying in 10s..."
+            sleep 10
+        fi
+        attempt=$((attempt + 1))
+    done
+
+    if [ "$attempt" -gt 3 ]; then
+        echo "Failed to fetch book page (last HTTP status: $http_code)." >&2
+        echo "Library Genesis is likely overloaded - try again in a few minutes." >&2
+        rm -f "$page_file"
+        return 1
+    fi
+
     local lgli_content
-    if ! lgli_content="$(curl -s -L "$LGLI_URL/ads.php?md5=$md5")"; then
-        echo "Failed to fetch book page" >&2
-        return 1
-    fi
-    
-    if ! local download_link="$(echo "$lgli_content" | grep -o -m 1 'href="[^"]*get\.php[^"]*"' | cut -d'"' -f2)"; then
-        echo "Failed to parse download link" >&2
-        return 1
-    fi
-    
+    lgli_content="$(cat "$page_file")"
+    rm -f "$page_file"
+
+    local download_link
+    download_link="$(echo "$lgli_content" | grep -o -m 1 'href="[^"]*get\.php[^"]*"' | cut -d'"' -f2)"
+
     if [ -z "$download_link" ]; then
-        echo "No download link found" >&2
+        echo "No download link found for this md5 (book may not be on this mirror)." >&2
         return 1
     fi
 
