@@ -62,48 +62,57 @@ lgli_download() {
         return 1
     fi
 
-    printf '\nFetching download page...\n'
-    # libgen's servers are overloaded at times and answer with transient
-    # errors (HTTP 500, "max_user_connections" DB errors). Retry a few
-    # times before giving up, and check the HTTP status so a server error
-    # page is never mistaken for a book page.
-    local page_file="$TMP_DIR"/lgli_ads_page.html
-    local http_code curl_exit attempt=1
-    while [ "$attempt" -le 3 ]; do
-        http_code="$(curl -s -L --max-time 60 -o "$page_file" -w '%{http_code}' \
-            -H "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64)" \
-            "$LGLI_URL/ads.php?md5=$md5")"
-        curl_exit=$?
-        if [ "$curl_exit" -eq 0 ] && [ "$http_code" = "200" ] && [ -s "$page_file" ]; then
-            break
-        fi
-        if [ "$attempt" -lt 3 ]; then
-            echo "Server error (HTTP $http_code, curl exit $curl_exit). Retrying in 10s..."
-            sleep 10
-        fi
-        attempt=$((attempt + 1))
+    # libgen's mirrors run independent backends and fail independently
+    # (DB connection limits, per-mirror CDN issues). Try the configured
+    # mirror first, then fall back to the other known mirrors.
+    local mirror_list="$LGLI_URL"
+    local m
+    for m in "https://libgen.li" "https://libgen.la" "https://libgen.gl"; do
+        case " $mirror_list " in
+            *" $m "*) ;;
+            *) mirror_list="$mirror_list $m" ;;
+        esac
     done
 
-    if [ "$attempt" -gt 3 ]; then
-        echo "Failed to fetch book page (last HTTP status: $http_code)." >&2
-        echo "Library Genesis is likely overloaded - try again in a few minutes." >&2
+    local download_url=""
+    local mirror http_code curl_exit attempt
+    for mirror in $mirror_list; do
+        printf '\nFetching download page from %s ...\n' "$mirror"
+        local page_file="$TMP_DIR"/lgli_ads_page.html
+        attempt=1
+        while [ "$attempt" -le 2 ]; do
+            http_code="$(curl -s -L --max-time 60 -o "$page_file" -w '%{http_code}' \
+                -H "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64)" \
+                "$mirror/ads.php?md5=$md5")"
+            curl_exit=$?
+            if [ "$curl_exit" -eq 0 ] && [ "$http_code" = "200" ] && [ -s "$page_file" ]; then
+                break
+            fi
+            if [ "$attempt" -lt 2 ]; then
+                echo "Server error (HTTP $http_code, curl exit $curl_exit). Retrying in 5s..."
+                sleep 5
+            fi
+            attempt=$((attempt + 1))
+        done
+
+        local lgli_content download_link
+        lgli_content="$(cat "$page_file" 2>/dev/null)"
         rm -f "$page_file"
+        download_link="$(echo "$lgli_content" | grep -o -m 1 'href="[^"]*get\.php[^"]*"' | cut -d'"' -f2)"
+
+        if [ -n "$download_link" ]; then
+            download_url="$mirror/$download_link"
+            break
+        fi
+        echo "No usable page from $mirror (HTTP $http_code), trying next mirror..."
+    done
+
+    if [ -z "$download_url" ]; then
+        echo "Failed to fetch book page from any mirror (last HTTP status: $http_code)." >&2
+        echo "Library Genesis is likely overloaded - try again in a few minutes." >&2
         return 1
     fi
 
-    local lgli_content
-    lgli_content="$(cat "$page_file")"
-    rm -f "$page_file"
-
-    local download_link
-    download_link="$(echo "$lgli_content" | grep -o -m 1 'href="[^"]*get\.php[^"]*"' | cut -d'"' -f2)"
-
-    if [ -z "$download_link" ]; then
-        echo "No download link found for this md5 (book may not be on this mirror)." >&2
-        return 1
-    fi
-
-    local download_url="$LGLI_URL/$download_link"
     echo "Downloading from: $download_url"
     
     printf '\nProgress (Press Ctrl + c to stop):\n'
