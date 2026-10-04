@@ -9,16 +9,34 @@
 # Use: copy to /mnt/us/lgli_diag.sh on the Kindle, run:
 #   sh /mnt/us/lgli_diag.sh [md5 ...]
 # Send back lgli_diag_out.txt.
+#
+# Privacy: the full report contains personal fields (config values like
+# the zlib username and library folder, local IPs/DNS servers, and the
+# titles/md5s of your last searches). For sharing with third parties,
+# run in redacted mode:
+#   sh /mnt/us/lgli_diag.sh --redacted [md5 ...]
+# which masks those fields (all network diagnostics stay intact).
 
 OUT="/mnt/us/downloads/lgli_diag_out.txt"
 if [ ! -d "/mnt/us/downloads" ]; then
     OUT="/mnt/us/lgli_diag_out.txt"
 fi
 
-echo "Diagnostic starting. Report will be written to: $OUT"
-echo "This runs a LOT of network tests - it may take a few minutes."
+REDACTED=false
+case "${1:-}" in
+    --redacted|-r) REDACTED=true; shift ;;
+esac
 
-exec >"$OUT" 2>&1
+if [ "$REDACTED" = true ]; then
+    RAW_OUT="$OUT.raw"
+    echo "Diagnostic starting (redacted mode). Report: $OUT"
+    echo "This runs a LOT of network tests - it may take a few minutes."
+    exec >"$RAW_OUT" 2>&1
+else
+    echo "Diagnostic starting. Report will be written to: $OUT"
+    echo "This runs a LOT of network tests - it may take a few minutes."
+    exec >"$OUT" 2>&1
+fi
 
 hr() { echo; echo "================================================================"; echo "$1"; echo "================================================================"; }
 
@@ -292,4 +310,26 @@ Key things to look for:
 EOF
 hr "END OF REPORT"
 echo "Finished: $(date)"
+
+if [ "$REDACTED" = true ]; then
+    # Mask personal fields; keep all network diagnostics intact.
+    {
+        echo "NOTE: redacted mode - personal fields are masked with ***"
+        sed -E \
+            -e 's/("title": ")[^"]*/\1***/g' \
+            -e 's/("author": ")[^"]*/\1***/g' \
+            -e 's/[a-f0-9]{32}/***/g' \
+            -e 's/^(ZLIB_USERNAME=).*/\1"**"/' \
+            -e 's/^(KINDLE_DOCUMENTS=).*/\1"**"/' \
+            -e 's/^(KINDLE_DOCUMENTS: ).*/\1***/' \
+            -e 's/(inet )[0-9]{1,3}(\.[0-9]{1,3}){3}.*/\1***/g' \
+            -e 's/(nameserver )[0-9.]+/\1***/g' \
+            -e 's/^([0-9]{1,3}\.){3}[0-9]{1,3}\/[0-9]+ dev .*/route entry ***/' \
+            -e 's/^default via [0-9.]+.*/default via ***/' \
+            "$RAW_OUT"
+    } > "$OUT"
+    rm -f "$RAW_OUT"
+    echo "Redacted report written to: $OUT" > /dev/tty 2>/dev/null
+fi
+
 exit 0
