@@ -408,11 +408,30 @@ search_books() {
                         local lgli_available=false
                         local zlib_available=false
 
+                        # Library Genesis fallback results carry a "src" marker.
+                        # Anna's Archive results don't, but their md5 may still
+                        # be hosted on libgen - offer lgli anyway (the download
+                        # fails cleanly if the file isn't there).
                         if echo "$book_info" | grep -q "lgli"; then
+                            lgli_available=true
+                        elif ! echo "$book_info" | grep -q '"src"'; then
                             lgli_available=true
                         fi
                         if echo "$book_info" | grep -q "zlib"; then
                             zlib_available=true
+                        fi
+
+                        # Number the options sequentially so the user doesn't
+                        # have to guess when a source is missing (cancel was
+                        # hardcoded to "3" even when it was the only option).
+                        local lgli_num="" zlib_num="" cancel_num=1
+                        if [ "$lgli_available" = true ]; then
+                            lgli_num="$cancel_num"
+                            cancel_num=$((cancel_num + 1))
+                        fi
+                        if [ "$zlib_available" = true ]; then
+                            zlib_num="$cancel_num"
+                            cancel_num=$((cancel_num + 1))
                         fi
 
                         while true; do
@@ -421,22 +440,22 @@ search_books() {
                             fi
 
                             if [ "$lgli_available" = true ]; then
-                                echo "1. lgli"
+                                echo "$lgli_num. lgli"
                             fi
                             if [ "$zlib_available" = true ]; then
                                 if [ "$ZLIB_AUTH" = true ]; then
-                                    echo "2. zlib"
+                                    echo "$zlib_num. zlib"
                                 else
-                                    echo "2. zlib (Authentication required)"
+                                    echo "$zlib_num. zlib (Authentication required)"
                                 fi
                             fi
-                            echo "3. Cancel download"
+                            echo "$cancel_num. Cancel download"
 
                             echo -n "Choose source to proceed with: "
                             read -r source_choice
 
                             case "$source_choice" in
-                                1)
+                                "$lgli_num")
                                     if [ "$lgli_available" = true ]; then
                                         echo "Proceeding with lgli..."
                                         if ! lgli_download "$choice"; then
@@ -449,7 +468,7 @@ search_books() {
                                         echo "Invalid choice."
                                     fi
                                     ;;
-                                2)
+                                "$zlib_num")
                                     if [ "$zlib_available" = true ]; then
                                         if [ "$ZLIB_AUTH" = true ]; then
                                             echo "Proceeding with zlib..."
@@ -505,7 +524,7 @@ search_books() {
                                         echo "Invalid choice."
                                     fi
                                     ;;
-                                3)
+                                "$cancel_num")
                                     break
                                     ;;
                                 *)

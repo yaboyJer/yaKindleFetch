@@ -8,7 +8,7 @@ zlib_download() {
         return 1
     fi
     
-    local book_info="$(awk -v i="$index" 'BEGIN{RS="\\{"; FS="\\}"} NR==i+1{print $1}' "$TMP_DIR"/search_results.json)"
+    local book_info="$(awk -v i="$index" 'BEGIN{RS="\\{"; FS="\\}"} NR==i+2{print $1}' "$TMP_DIR"/search_results.json)"
     if [ -z "$book_info" ]; then
         echo "Invalid book selection" >&2
         return 1

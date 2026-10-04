@@ -8,7 +8,7 @@ lgli_download() {
         return 1
     fi
     
-    local book_info="$(awk -v i="$index" 'BEGIN{RS="\\{"; FS="\\}"} NR==i+1{print $1}' "$TMP_DIR"/search_results.json)"
+    local book_info="$(awk -v i="$index" 'BEGIN{RS="\\{"; FS="\\}"} NR==i+2{print $1}' "$TMP_DIR"/search_results.json)"
     if [ -z "$book_info" ]; then
         echo "Invalid book selection"
         return 1
@@ -17,6 +17,11 @@ lgli_download() {
     local md5="$(get_json_value "$book_info" "md5")"
     local title="$(get_json_value "$book_info" "title")"
     local format="$(get_json_value "$book_info" "format")"
+
+    if [ -z "$md5" ] || [ "$md5" = "null" ]; then
+        echo "Could not read md5 for the selected book (search results may be stale). Re-run the search and try again."
+        return 1
+    fi
     
     printf "\nDownloading: $title"
 
