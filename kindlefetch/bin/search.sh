@@ -84,13 +84,26 @@ search_books() {
         filters="$(cat "$CURRENT_PARAMS_FILE")"
     fi
     
+    # Search backends, in order:
+    #   1. Anna's Archive Open API (JSON) - not behind the HTML frontend's
+    #      bot/DDoS protection and stable to parse. Preferred.
+    #   2. Anna's Archive HTML frontend - used when every API host is
+    #      unreachable from this network.
+    #   3. Library Genesis - final fallback when Anna's Archive fails.
+    # search_books returns 0 on success (incl. no results) and 1 when all
+    # backends fail.
+    local last_page=""
+    local books=""
+
+    local api_last_page
+    if api_last_page="$(aa_api_search "$query" "$page")"; then
+        last_page="$api_last_page"
+        [ -z "$last_page" ] && last_page=1
+        books="$(cat "$TMP_DIR"/search_results.json 2>/dev/null)"
+    else
     local encoded_query="$(urlencode "$query")"
     local search_url="$ANNAS_URL/search?page=${page}&q=${encoded_query}${filters}"
     # Fetch results page, keeping curl/HTTP status for diagnostics.
-    # If Anna's Archive fails (network, HTTP error, challenge page, or a page
-    # with no parseable entries), Library Genesis is automatically used as a
-    # fallback search backend. search_books returns 0 on success (incl. no
-    # results) and 1 when both backends fail.
     local http_code curl_exit html_content
     http_code="$(curl -s -L --max-time 30 \
         -o "$TMP_DIR"/last_search_page.html \
@@ -115,9 +128,6 @@ search_books() {
     elif [ "$http_code" != "200" ]; then
         aa_error="$ANNAS_URL returned HTTP $http_code (mirror may be down or refusing requests)"
     fi
-
-    local last_page=""
-    local books=""
 
     if [ -z "$aa_error" ]; then
     
@@ -232,6 +242,7 @@ search_books() {
         fi
         last_page="$lgli_last_page"
         [ -z "$last_page" ] && last_page=1
+    fi
     fi
 
     local has_prev=false
@@ -406,8 +417,19 @@ search_books() {
                             esac
                         fi
 
+                        local aa_available=false
                         local lgli_available=false
                         local zlib_available=false
+
+                        # Any result with a usable md5 can be pulled through the
+                        # Anna's Archive API (/download/aa/<md5>), which indexes
+                        # libgen too - so "aa" is offered for every result and
+                        # is the preferred download path.
+                        local sel_md5
+                        sel_md5="$(get_json_value "$book_info" "md5")"
+                        if [ -n "$sel_md5" ] && [ "$sel_md5" != "null" ]; then
+                            aa_available=true
+                        fi
 
                         # Library Genesis fallback results carry a "src" marker.
                         # Anna's Archive results don't, but their md5 may still
@@ -425,7 +447,11 @@ search_books() {
                         # Number the options sequentially so the user doesn't
                         # have to guess when a source is missing (cancel was
                         # hardcoded to "3" even when it was the only option).
-                        local lgli_num="" zlib_num="" cancel_num=1
+                        local aa_num="" lgli_num="" zlib_num="" cancel_num=1
+                        if [ "$aa_available" = true ]; then
+                            aa_num="$cancel_num"
+                            cancel_num=$((cancel_num + 1))
+                        fi
                         if [ "$lgli_available" = true ]; then
                             lgli_num="$cancel_num"
                             cancel_num=$((cancel_num + 1))
@@ -436,10 +462,13 @@ search_books() {
                         fi
 
                         while true; do
-                            if [ "$lgli_available" = false ] && [ "$zlib_available" = false ]; then
+                            if [ "$aa_available" = false ] && [ "$lgli_available" = false ] && [ "$zlib_available" = false ]; then
                                 echo "There are no available sources for this book right now."
                             fi
 
+                            if [ "$aa_available" = true ]; then
+                                echo "$aa_num. aa (Anna's Archive API)"
+                            fi
                             if [ "$lgli_available" = true ]; then
                                 echo "$lgli_num. lgli"
                             fi
@@ -456,6 +485,19 @@ search_books() {
                             read -r source_choice
 
                             case "$source_choice" in
+                                "$aa_num")
+                                    if [ "$aa_available" = true ]; then
+                                        echo "Proceeding with Anna's Archive API..."
+                                        if ! aa_download "$choice"; then
+                                            echo "Download from Anna's Archive failed."
+                                            sleep 2
+                                        else
+                                            break
+                                        fi
+                                    else
+                                        echo "Invalid choice."
+                                    fi
+                                    ;;
                                 "$lgli_num")
                                     if [ "$lgli_available" = true ]; then
                                         echo "Proceeding with lgli..."

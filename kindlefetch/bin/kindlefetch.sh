@@ -35,9 +35,11 @@ fi
 # Script imports
 . "$SCRIPT_DIR/downloads/zlib_download.sh"
 . "$SCRIPT_DIR/downloads/lgli_download.sh"
+. "$SCRIPT_DIR/downloads/aa_download.sh"
 . "$SCRIPT_DIR/filters.sh"
 . "$SCRIPT_DIR/search.sh"
 . "$SCRIPT_DIR/lgli_search.sh"
+. "$SCRIPT_DIR/aa_search.sh"
 . "$SCRIPT_DIR/misc.sh"
 . "$SCRIPT_DIR/local_books.sh"
 . "$SCRIPT_DIR/update.sh"

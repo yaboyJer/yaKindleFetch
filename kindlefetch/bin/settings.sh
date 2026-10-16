@@ -126,6 +126,7 @@ settings_menu() {
                 echo "1. Anna's Archive"
                 echo "2. Library Genesis"
                 echo "3. ZLibrary"
+                echo "4. Anna's Archive API (leave empty for built-in mirrors)"
                 echo ""
                 echo "q. Cancel"
                 echo ""
@@ -199,6 +200,18 @@ settings_menu() {
 
                         ZLIB_URL="$working_url"
                         echo "ZLibrary URL set to $ZLIB_URL"
+                        save_config
+                        sleep 2
+                        ;;
+                    4)
+                        echo -n "Enter new base URL for the Anna's Archive API (empty for defaults): "
+                        read -r new_aa_api_url
+                        AA_API_URL="$new_aa_api_url"
+                        if [ -n "$AA_API_URL" ]; then
+                            echo "Anna's Archive API URL set to $AA_API_URL"
+                        else
+                            echo "Using built-in Anna's Archive API mirrors"
+                        fi
                         save_config
                         sleep 2
                         ;;

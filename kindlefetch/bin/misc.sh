@@ -55,7 +55,17 @@ urlencode() {
 }
 
 get_json_value() {
-    echo "$1" | grep -o "\"$2\"[[:space:]]*:[[:space:]]*\"[^\"]*\"" | sed "s/\"$2\"[[:space:]]*:[[:space:]]*\"\([^\"]*\)\"/\1/" || \
+    # Attempt 1: string values ("key": "value"). We must check grep's match
+    # itself rather than relying on the pipeline exit status - sed exits 0
+    # even on empty input, which would mask a grep failure and keep the
+    # numeric fallback below from ever running.
+    local string_match
+    string_match="$(echo "$1" | grep -o "\"$2\"[[:space:]]*:[[:space:]]*\"[^\"]*\"")"
+    if [ -n "$string_match" ]; then
+        echo "$string_match" | sed "s/\"$2\"[[:space:]]*:[[:space:]]*\"\([^\"]*\)\"/\1/"
+        return 0
+    fi
+    # Attempt 2: unquoted values ("key": 123, true, null, ...).
     echo "$1" | grep -o "\"$2\"[[:space:]]*:[[:space:]]*[^,}]*" | sed "s/\"$2\"[[:space:]]*:[[:space:]]*\([^,}]*\)/\1/"
 }
 
@@ -80,6 +90,8 @@ cleanup() {
           "$TMP_DIR"/search_results.json \
           "$TMP_DIR"/last_search_* \
           "$TMP_DIR"/lgli_search_page.html \
+          "$TMP_DIR"/aa_api_response.json \
+          "$TMP_DIR"/aa_download_tmp \
           "$TMP_DIR"/dup_targets
 }
 
@@ -123,6 +135,7 @@ save_config() {
         echo "ZLIB_USERNAME=\"$ZLIB_USERNAME\""
         echo "RESULTS_PER_PAGE=\"$RESULTS_PER_PAGE\""
         echo "ANNAS_URL=\"$ANNAS_URL\""
+        echo "AA_API_URL=\"${AA_API_URL:-}\""
         echo "LGLI_URL=\"$LGLI_URL\""
         echo "ZLIB_URL=\"$ZLIB_URL\""
     } > "$CONFIG_FILE"
