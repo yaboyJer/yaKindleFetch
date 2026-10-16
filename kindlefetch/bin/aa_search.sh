@@ -10,7 +10,30 @@
 # here must correspond to a real user action (a search page), never a
 # probe or retry loop.
 
-AA_API_MIRRORS="https://api.annas-archive.org https://api5.annas-archive.org https://300.annas-archive.org"
+# NOTE: the old .org API hosts (api.annas-archive.org, api5, 300) are
+# gone (NXDOMAIN) as of 2026-06; the .gl API subdomains are what remain,
+# though they may 302 to the main domain depending on the path.
+AA_API_MIRRORS="https://api.annas-archive.gl https://api5.annas-archive.gl https://300.annas-archive.gl"
+
+# Negative cache: when every API host fails (DNS dead, DDoS-Guard
+# challenge, rate limit...), don't burn another ~1min of curl time on
+# the next search - skip straight to the HTML frontend for 10 minutes.
+AA_API_FAIL_MARKER="$TMP_DIR"/aa_api_unavailable
+AA_API_FAIL_TTL=600
+
+aa_api_recently_failed() {
+    [ -f "$AA_API_FAIL_MARKER" ] || return 1
+    local stamp now age
+    stamp="$(cat "$AA_API_FAIL_MARKER" 2>/dev/null)"
+    case "$stamp" in ''|*[!0-9]*) rm -f "$AA_API_FAIL_MARKER"; return 1 ;; esac
+    now="$(date +%s)"
+    age=$(( now - stamp ))
+    if [ "$age" -lt 0 ] || [ "$age" -ge "$AA_API_FAIL_TTL" ]; then
+        rm -f "$AA_API_FAIL_MARKER"
+        return 1
+    fi
+    return 0
+}
 
 # Print the API base URLs to try: the user-configured one first (if set
 # in the settings menu), then the public mirrors in preference order.
@@ -41,8 +64,13 @@ aa_api_search() {
     enc_query="$(urlencode "$query")"
     resp_file="$TMP_DIR"/aa_api_response.json
 
+    if aa_api_recently_failed; then
+        echo "Anna's Archive API skipped (all hosts failed recently - see previous search)." >&2
+        return 1
+    fi
+
     for host in $(aa_api_hosts); do
-        http_code="$(curl -s --max-time 45 \
+        http_code="$(curl -s --max-time 20 \
             -o "$resp_file" \
             -w '%{http_code}' \
             -H "Accept: application/json" \
@@ -170,5 +198,6 @@ aa_api_search() {
         return 0
     done
 
+    date +%s > "$AA_API_FAIL_MARKER" 2>/dev/null
     return 1
 }

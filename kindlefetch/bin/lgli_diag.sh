@@ -265,11 +265,60 @@ for url in "https://libgen.li" "https://libgen.la" "https://libgen.gl"; do
 done
 
 # ---------------------------------------------------------------------------
-hr "13. ANNA'S ARCHIVE STATUS"
-curl -s -A "$UA_BROWSER" --max-time 20 -o /dev/null -w 'GET /: http=%{http_code}\n' "$ANNAS_URL/" 2>&1
-curl -s -A "$UA_BROWSER" -L --max-time 30 -o /tmp/lgli_diag_aa.html -w 'GET /search: http=%{http_code} final=%{url_effective}\n' "$ANNAS_URL/search?q=shadow+and+claw" 2>&1
-grep -oiE 'DDoS-Guard|just a moment|captcha' /tmp/lgli_diag_aa.html 2>/dev/null | head -1 | sed 's/^/marker: /'
-rm -f /tmp/lgli_diag_aa.html
+hr "13. ANNA'S ARCHIVE STATUS (frontends, JSON path, API hosts, SLUM)"
+# Privacy: this section only uses the FIXED test query below - never the
+# user's own search history. Response bodies are discarded; only status
+# codes, redirect targets and protection markers are recorded.
+AA_TEST_Q="shadow+and+claw"
+AA_PROBE() {
+    # $1=label  $2=url  $3=extra curl args...  -> prints status/redirect/marker
+    local label="$1" url="$2"; shift 2
+    local body=/tmp/lgli_diag_aa_probe.out
+    local meta
+    meta=$(curl -s -A "$UA_BROWSER" --max-time 15 "$@" -o "$body" -w 'http=%{http_code} final=%{url_effective} redirect=%{redirect_url}' "$url" 2>&1)
+    local marker suffix=""
+    # Match the challenge PAGE specifically - the homepage (http=200) also
+    # contains the string "DDOS-GUARD" in an always-present script, so a
+    # bare string match would false-positive.
+    marker="$(grep -oiE '<title>DDoS-Guard</title>|ddos-guard/js-challenge|cf-chl|just a moment|check\.js' "$body" 2>/dev/null | head -1)"
+    [ -n "$marker" ] && suffix=" challenge=$marker"
+    # DDoS-Guard's JS check is a redirect that appends check=1 - a reliable
+    # signal even when the final page body is not captured.
+    case "$meta" in *"check=1"*) suffix="$suffix redirect=check=1" ;; esac
+    echo "  $label: $meta$suffix"
+    rm -f "$body"
+}
+
+echo "--- DNS: frontend + API hosts ---"
+for h in annas-archive.gl annas-archive.gd annas-archive.pk \
+         api.annas-archive.gl api5.annas-archive.gl 300.annas-archive.gl \
+         api.annas-archive.org; do
+    echo "host: $h"
+    if command -v getent >/dev/null 2>&1; then
+        getent hosts "$h" 2>&1 || echo "  (getent: lookup failed - NXDOMAIN?)"
+    else
+        echo "  (getent not available)"
+    fi
+done
+echo
+echo "--- frontend mirrors: / , /search (HTML) , /search (JSON) ---"
+for m in https://annas-archive.gl https://annas-archive.gd https://annas-archive.pk; do
+    echo "[$m]"
+    AA_PROBE "GET  /                    " "$m/"
+    AA_PROBE "GET  /search (html)       " "$m/search?q=$AA_TEST_Q"
+    AA_PROBE "GET  /search (json)       " "$m/search?query=$AA_TEST_Q&response_type=json" -L
+done
+echo
+echo "--- API hosts: with and without redirect-following ---"
+for m in https://api.annas-archive.gl https://api5.annas-archive.gl https://300.annas-archive.gl; do
+    echo "[$m]"
+    AA_PROBE "GET  /v3 (no -L)          " "$m/v3/scrape/search?q=$AA_TEST_Q&response_type=json"
+    AA_PROBE "GET  /v3 (-L)             " "$m/v3/scrape/search?q=$AA_TEST_Q&response_type=json" -L
+    AA_PROBE "GET  /search json (-L)    " "$m/search?query=$AA_TEST_Q&response_type=json" -L
+done
+echo
+echo "--- SLUM mirror-health tracker ---"
+AA_PROBE "GET  open-slum.org           " "https://open-slum.org/"
 
 # ---------------------------------------------------------------------------
 hr "14. RAW NETWORK CAPABILITY CHECKS"
@@ -306,6 +355,23 @@ Key things to look for:
       fatal - but combined with INTEGRITY failures it is).
 - S11: the full verbose transcript of one download - shows every hop,
       every header, redirect by redirect.
+- S13: Anna's Archive. What to look for:
+      * DNS: api.annas-archive.org is dead (NXDOMAIN) - ignore it.
+      * 'challenge=DDoS-Guard' on /search (html) or (json): that mirror's
+        search paths are behind a JS challenge that plain curl cannot pass
+        (the app then falls back to libgen). If ALL mirrors show this, the
+        whole Anna's Archive HTML+JSON path is blocked for this IP and
+        only the API hosts (next group) or a different network (phone
+        hotspot) can help.
+      * API hosts: 'http=500' + 'redirect=https://annas-archive.gl/...' means
+        the subdomain forwards to the main domain (current behavior);
+        what matters is the (-L) line - if it ends in challenge=DDoS-Guard
+        or http=404, the keyless JSON API is not usable from this IP.
+      * A /search (json) line with http=200 and NO challenge marker means
+        the JSON API works from the Kindle - the app's 'aa' source should
+        then be fully functional.
+      * SLUM (open-slum.org) tracks community mirror health - useful for
+        cross-checking which mirrors are up.
 - S14: can the Kindle even reach port 80 / the CDN host directly?
 EOF
 hr "END OF REPORT"

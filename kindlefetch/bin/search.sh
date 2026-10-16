@@ -223,7 +223,7 @@ search_books() {
         local book_count
         book_count="$(echo "$books" | grep -o '"title":' | wc -l)"
         if [ "$book_count" -eq 0 ]; then
-            if echo "$html_content" | grep -qiE 'just a moment|cf-chl|captcha'; then
+            if echo "$html_content" | grep -qiE 'just a moment|cf-chl|captcha|ddos-guard/js-challenge|<title>ddos-guard</title>'; then
                 aa_error="request was blocked by a challenge page"
             elif ! echo "$html_content" | grep -q 'flex pt-3 pb-3 border-b'; then
                 aa_error="no book entries found in the results page (site layout may have changed)"

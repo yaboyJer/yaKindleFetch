@@ -49,6 +49,14 @@ fi
 check_for_updates
 load_config
 
+# Default mirror lists. These were referenced but never defined, so URL
+# auto-discovery was silently dead; the device config file always wins
+# when it already has a value. The .org AA API/frontends and several old
+# TLDs (.net/.li/.cc) are gone as of 2026-06.
+[ -z "$ANNAS_MIRROR_URLS" ] && ANNAS_MIRROR_URLS="https://annas-archive.gl https://annas-archive.gd https://annas-archive.pk"
+[ -z "$LGLI_MIRROR_URLS" ] && LGLI_MIRROR_URLS="https://libgen.li https://libgen.la https://libgen.gl"
+[ -z "$ZLIB_MIRROR_URLS" ] && ZLIB_MIRROR_URLS="https://zlib.org https://zh.z-library.org https://z-library.org"
+
 [ -z "$ANNAS_URL" ] && ANNAS_URL=$(find_working_url $ANNAS_MIRROR_URLS)
 [ -z "$LGLI_URL" ] && LGLI_URL=$(find_working_url $LGLI_MIRROR_URLS)
 [ -z "$ZLIB_URL" ] && ZLIB_URL=$(find_working_url $ZLIB_MIRROR_URLS)

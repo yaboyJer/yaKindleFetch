@@ -91,6 +91,7 @@ cleanup() {
           "$TMP_DIR"/last_search_* \
           "$TMP_DIR"/lgli_search_page.html \
           "$TMP_DIR"/aa_api_response.json \
+          "$TMP_DIR"/aa_api_unavailable \
           "$TMP_DIR"/aa_download_tmp \
           "$TMP_DIR"/dup_targets
 }
