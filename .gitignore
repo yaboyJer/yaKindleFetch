@@ -7,3 +7,8 @@ kindlefetch_config
 venv/
 kindlefetch.zip
 .version
+# live session cookie for the user's Z-Library account - never commit
+zlib_cookies.txt
+# diagnostic reports contain config values / last-search titles
+lgli_diag_out.txt
+lgli_diag_out.txt.raw
